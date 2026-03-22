@@ -15,6 +15,7 @@ export default function ClienteDetail() {
   const [assigning, setAssigning] = useState(false)
   const [selectedProgram, setSelectedProgram] = useState('')
   const [startWeek, setStartWeek] = useState(1)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   useEffect(() => { load() }, [id])
 
@@ -34,6 +35,17 @@ export default function ClienteDetail() {
       .eq('client_id', id)
       .order('started_at', { ascending: false })
     setAssignedPrograms(ap || [])
+  }
+
+  async function copyLink() {
+    const { data } = await supabase
+      .from('clients').select('access_token').eq('id', id as string).single()
+    if (data?.access_token) {
+      const link = `${window.location.origin}/cliente/${data.access_token}`
+      await navigator.clipboard.writeText(link)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2500)
+    }
   }
 
   async function assignProgram() {
@@ -99,11 +111,27 @@ export default function ClienteDetail() {
               )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+
+          {/* BOTTONI HEADER */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {/* BOTTONE LINK CLIENTE */}
+            <button onClick={copyLink} style={{
+              background: linkCopied ? 'rgba(180,255,79,0.2)' : 'rgba(180,255,79,0.1)',
+              border: '1px solid rgba(180,255,79,0.3)',
+              borderRadius: 8, padding: '8px 14px', fontSize: 13,
+              color: 'var(--accent)', cursor: 'pointer', fontWeight: 500,
+              transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 6
+            }}>
+              {linkCopied ? '✓ Copiato!' : '🔗 Link cliente'}
+            </button>
+
+            {/* BOTTONE ASSEGNA */}
             <button onClick={() => setAssigning(true)} style={{
               background: 'var(--surface2)', border: '1px solid var(--border2)',
               borderRadius: 8, padding: '8px 14px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer'
             }}>+ Assegna scheda</button>
+
+            {/* BOTTONE SESSIONE */}
             {activeProgram && (
               <button onClick={() => router.push(`/dashboard/clienti/${id}/sessione`)} style={{
                 background: 'var(--accent)', color: '#0C0D10', border: 'none',
@@ -175,29 +203,16 @@ export default function ClienteDetail() {
             )}
 
             <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={async () => {
-                    const { data } = await supabase
-                    .from('clients').select('access_token').eq('id', id as string).single()
-                    if (data?.access_token) {
-                    const link = `${window.location.origin}/cliente/${data.access_token}`
-                    await navigator.clipboard.writeText(link)
-                    alert(`✓ Link copiato!\n\nMandalo al cliente:\n${link}`)
-                    }
-                }} style={{
-                    background: 'rgba(180,255,79,0.1)', border: '1px solid rgba(180,255,79,0.3)',
-                    borderRadius: 8, padding: '8px 14px', fontSize: 13,
-                    color: 'var(--accent)', cursor: 'pointer', fontWeight: 500
-                }}>🔗 Copia link</button>
-                <button onClick={() => setAssigning(true)} style={{
-                    background: 'var(--surface2)', border: '1px solid var(--border2)',
-                    borderRadius: 8, padding: '8px 14px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer'
-                }}>+ Assegna scheda</button>
-                {activeProgram && (
-                    <button onClick={() => router.push(`/dashboard/clienti/${id}/sessione`)} style={{
-                    background: 'var(--accent)', color: '#0C0D10', border: 'none',
-                    borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
-                    }}>▶ Inizia sessione</button>
-                )}
+              <button onClick={() => { setAssigning(false); setSelectedProgram('') }} style={{
+                flex: 1, background: 'none', border: '1px solid var(--border2)',
+                borderRadius: 8, padding: 11, fontSize: 14, color: 'var(--text2)', cursor: 'pointer'
+              }}>Annulla</button>
+              <button onClick={assignProgram} disabled={!selectedProgram} style={{
+                flex: 2, background: selectedProgram ? 'var(--accent)' : 'var(--surface2)',
+                color: selectedProgram ? '#0C0D10' : 'var(--text3)',
+                border: 'none', borderRadius: 8, padding: 11,
+                fontSize: 14, fontWeight: 600, cursor: selectedProgram ? 'pointer' : 'not-allowed'
+              }}>Assegna scheda</button>
             </div>
           </div>
         </div>
@@ -318,7 +333,6 @@ export default function ClienteDetail() {
                         <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
                           {ap.programs?.goal || '—'} · {ap.programs?.level || '—'} · {ap.programs?.days_per_week} giorni/sett.
                         </div>
-                        {/* Barra progresso settimane */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div style={{ flex: 1, height: 4, background: 'var(--surface3)', borderRadius: 2, overflow: 'hidden' }}>
                             <div style={{
@@ -332,8 +346,6 @@ export default function ClienteDetail() {
                           </span>
                         </div>
                       </div>
-
-                      {/* Cambio settimana manuale */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <button onClick={() => updateWeek(ap.id, Math.max(1, ap.current_week - 1))} style={{
                           background: 'var(--surface2)', border: '1px solid var(--border2)',
@@ -409,4 +421,4 @@ export default function ClienteDetail() {
       </div>
     </div>
   )
-}             
+}
