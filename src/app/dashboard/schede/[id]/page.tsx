@@ -38,16 +38,14 @@ export default function SchedaBuilder() {
     const map: Record<string, any[]> = {}
     exIds.forEach((eid: string) => { map[eid] = [] })
     ;(progs || []).forEach((p: any) => { if (map[p.exercise_id]) map[p.exercise_id].push(p) })
-    // Se mancano settimane per qualche esercizio, creale di default
     for (const ex of exs) {
       const weeks = map[ex.id] || []
       for (let w = 1; w <= totalWeeks; w++) {
         if (!weeks.find((p: any) => p.week_num === w)) {
           const { data: newProg } = await supabase.from('week_progressions').insert({
             exercise_id: ex.id, week_num: w,
-            name: ex.name,
-            sets: ex.sets, reps: ex.reps, rir: ex.rir,
-            is_deload: w === totalWeeks
+            name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir,
+            tut: ex.tut || '', is_deload: w === totalWeeks
           }).select().single()
           if (newProg) map[ex.id].push(newProg)
         }
@@ -67,7 +65,14 @@ export default function SchedaBuilder() {
     const { data } = await supabase.from('sessions').insert({
       program_id: id, name: newSessionName.trim(), day_index: sessions.length
     }).select().single()
-    if (data) { setSessions([...sessions, data]); setActiveSession(data); setExercises([]); setProgressions({}); setNewSessionName(''); setAddingSession(false) }
+    if (data) {
+      setSessions([...sessions, data])
+      setActiveSession(data)
+      setExercises([])
+      setProgressions({})
+      setNewSessionName('')
+      setAddingSession(false)
+    }
   }
 
   async function deleteSession(sessId: string) {
@@ -83,14 +88,16 @@ export default function SchedaBuilder() {
     if (!activeSession) return
     const { data: ex } = await supabase.from('exercises').insert({
       session_id: activeSession.id, name: 'Nuovo esercizio',
-      sets: 3, reps: '8-10', rir: 2, rest_seconds: 120, sort_order: exercises.length
+      sets: 3, reps: '8-10', rir: 2, tut: '', rest_seconds: 120, sort_order: exercises.length
     }).select().single()
     if (!ex) return
     const totalWeeks = program?.total_weeks || 4
     const newProgs: any[] = []
     for (let w = 1; w <= totalWeeks; w++) {
       const { data: prog } = await supabase.from('week_progressions').insert({
-        exercise_id: ex.id, week_num: w, sets: 3, reps: '8-10', rir: 2, is_deload: w === totalWeeks
+        exercise_id: ex.id, week_num: w,
+        name: 'Nuovo esercizio', sets: 3, reps: '8-10', rir: 2, tut: '',
+        is_deload: w === totalWeeks
       }).select().single()
       if (prog) newProgs.push(prog)
     }
@@ -105,13 +112,6 @@ export default function SchedaBuilder() {
     }))
     setSaved(false)
     await supabase.from('week_progressions').update({ [field]: value }).eq('id', progId)
-    setSaved(true)
-  }
-
-  async function updateExerciseName(exId: string, name: string) {
-    setExercises(prev => prev.map(e => e.id === exId ? { ...e, name } : e))
-    setSaved(false)
-    await supabase.from('exercises').update({ name }).eq('id', exId)
     setSaved(true)
   }
 
@@ -251,7 +251,7 @@ export default function SchedaBuilder() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div>
                     <div style={{ fontFamily: 'var(--font-syne)', fontSize: 17, fontWeight: 700 }}>{activeSession.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{exercises.length} esercizi · {totalWeeks} settimane di progressione</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{exercises.length} esercizi · {totalWeeks} settimane</div>
                   </div>
                   <button onClick={addExercise} style={{
                     background: 'var(--accent)', color: '#0C0D10', border: 'none',
@@ -279,30 +279,30 @@ export default function SchedaBuilder() {
                 </div>
               </div>
 
-              {/* ETICHETTA SETTIMANA */}
-              <div style={{ padding: '12px 24px 0' }}>
-                {activeWeek === totalWeeks && (
+              {/* BANNER SCARICO */}
+              {activeWeek === totalWeeks && (
+                <div style={{ padding: '12px 24px 0' }}>
                   <div style={{
                     background: 'rgba(255,184,79,0.1)', border: '1px solid rgba(255,184,79,0.3)',
                     borderRadius: 8, padding: '8px 14px', fontSize: 12,
-                    color: 'var(--amber)', marginBottom: 12
+                    color: 'var(--amber)', marginBottom: 4
                   }}>
                     🔄 Settimana di scarico — volume dimezzato, stessi carichi della settimana precedente
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* TABELLA ESERCIZI */}
-              <div style={{ padding: '8px 24px 24px', flex: 1 }}>
+              <div style={{ padding: '12px 24px 24px', flex: 1 }}>
 
                 {/* HEADER COLONNE */}
                 {exercises.length > 0 && (
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: '24px 1fr 65px 80px 65px 95px 36px',
+                    gridTemplateColumns: '24px 1fr 60px 75px 60px 75px 90px 36px',
                     gap: 8, padding: '6px 14px', marginBottom: 4
                   }}>
-                    {['#', 'Esercizio', 'Serie', 'Reps', 'Buffer', 'Recupero', ''].map((h, i) => (
+                    {['#', 'Esercizio', 'Serie', 'Reps', 'Buffer', 'T.U.T.', 'Recupero', ''].map((h, i) => (
                       <span key={i} style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
                     ))}
                   </div>
@@ -317,16 +317,18 @@ export default function SchedaBuilder() {
                       background: 'var(--surface)', border: '1px solid var(--border)',
                       borderRadius: 10, marginBottom: 6, overflow: 'hidden'
                     }}>
+                      {/* RIGA PRINCIPALE */}
                       <div style={{
                         display: 'grid',
-                        gridTemplateColumns: '24px 1fr 65px 80px 65px 95px 36px',
+                        gridTemplateColumns: '24px 1fr 60px 75px 60px 75px 90px 36px',
                         gap: 8, padding: '11px 14px', alignItems: 'center'
                       }}>
                         {/* Numero */}
                         <span style={{ fontFamily: 'var(--font-dm-mono)', fontSize: 11, color: 'var(--text3)' }}>{idx + 1}</span>
 
-                        {/* Nome esercizio */}
-                        <input value={weekProg?.name ?? ex.name}
+                        {/* Nome — indipendente per settimana */}
+                        <input
+                          value={weekProg?.name ?? ex.name}
                           onChange={e => weekProg && updateProgression(weekProg.id, ex.id, 'name', e.target.value)}
                           style={{
                             background: 'transparent', border: 'none', color: 'var(--text)',
@@ -337,7 +339,7 @@ export default function SchedaBuilder() {
                           onBlur={e => (e.target as HTMLInputElement).style.borderBottomColor = 'transparent'}
                         />
 
-                        {/* Serie — per settimana */}
+                        {/* Serie */}
                         {weekProg ? (
                           <input type="number" min="1" max="10"
                             value={weekProg.sets ?? ''}
@@ -345,14 +347,15 @@ export default function SchedaBuilder() {
                             style={inputSm} />
                         ) : <span style={{ color: 'var(--text3)', fontSize: 12, textAlign: 'center' }}>—</span>}
 
-                        {/* Reps — per settimana */}
+                        {/* Reps */}
                         {weekProg ? (
-                          <input value={weekProg.reps ?? ''}
+                          <input
+                            value={weekProg.reps ?? ''}
                             onChange={e => updateProgression(weekProg.id, ex.id, 'reps', e.target.value)}
                             style={inputSm} placeholder="8-10" />
                         ) : <span style={{ color: 'var(--text3)', fontSize: 12, textAlign: 'center' }}>—</span>}
 
-                        {/* Buffer — per settimana */}
+                        {/* Buffer/RIR */}
                         {weekProg ? (
                           <input type="number" min="0" max="5"
                             value={weekProg.rir ?? ''}
@@ -360,10 +363,20 @@ export default function SchedaBuilder() {
                             style={inputSm} />
                         ) : <span />}
 
-                        {/* Recupero — globale per esercizio */}
-                        <select value={ex.rest_seconds}
+                        {/* T.U.T. */}
+                        {weekProg ? (
+                          <input
+                            value={weekProg.tut ?? ''}
+                            onChange={e => updateProgression(weekProg.id, ex.id, 'tut', e.target.value)}
+                            style={inputSm} placeholder="2-0-2" />
+                        ) : <span />}
+
+                        {/* Recupero */}
+                        <select
+                          value={ex.rest_seconds}
                           onChange={e => updateExerciseRest(ex.id, parseInt(e.target.value))}
-                          style={{ ...inputSm, cursor: 'pointer', textAlign: 'left', padding: '5px 6px' }}>
+                          style={{ ...inputSm, cursor: 'pointer', textAlign: 'left', padding: '5px 4px', fontSize: 12 }}>
+                          <option value={45}>0′45″</option>
                           <option value={60}>1′00″</option>
                           <option value={75}>1′15″</option>
                           <option value={90}>1′30″</option>
@@ -376,25 +389,24 @@ export default function SchedaBuilder() {
                         {/* Elimina */}
                         <button onClick={() => deleteExercise(ex.id)} style={{
                           background: 'none', border: 'none', color: 'var(--text3)',
-                          cursor: 'pointer', fontSize: 14, padding: 0
+                          cursor: 'pointer', fontSize: 14, padding: 0, transition: 'color 0.15s'
                         }}
                           onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = 'var(--red)'}
                           onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = 'var(--text3)'}
                         >✕</button>
                       </div>
 
-                      {/* Note settimana */}
+                      {/* NOTE SETTIMANA */}
                       {weekProg && (
                         <div style={{ padding: '0 14px 10px' }}>
                           <input
                             value={weekProg.notes ?? ''}
                             onChange={e => updateProgression(weekProg.id, ex.id, 'notes', e.target.value)}
-                            placeholder="Note per questa settimana (es. aumenta carico del 2%, stessa intensità...)"
+                            placeholder="Note settimana (es. aumenta carico del 2%, tempo eccentrica 3 sec...)"
                             style={{
                               width: '100%', background: 'transparent', border: 'none',
                               borderBottom: '1px solid var(--border)', color: 'var(--text3)',
-                              fontSize: 12, outline: 'none', padding: '4px 0',
-                              fontStyle: 'italic'
+                              fontSize: 12, outline: 'none', padding: '4px 0', fontStyle: 'italic'
                             }}
                             onFocus={e => (e.target as HTMLInputElement).style.borderBottomColor = 'var(--accent)'}
                             onBlur={e => (e.target as HTMLInputElement).style.borderBottomColor = 'var(--border)'}
@@ -417,7 +429,7 @@ export default function SchedaBuilder() {
                   <button onClick={addExercise} style={{
                     width: '100%', marginTop: 4, background: 'none',
                     border: '1px dashed var(--border2)', borderRadius: 10,
-                    padding: '9px', fontSize: 13, color: 'var(--text3)', cursor: 'pointer'
+                    padding: '9px', fontSize: 13, color: 'var(--text3)', cursor: 'pointer', transition: 'all 0.15s'
                   }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border2)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text3)' }}

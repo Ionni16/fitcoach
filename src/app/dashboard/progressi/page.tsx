@@ -13,7 +13,7 @@ export default function Progressi() {
       setClients(c || [])
       const { data: l } = await supabase
         .from('weight_logs')
-        .select('*, exercises(name), clients(name)')
+        .select('*, exercises(id, name, week_progressions(name, week_num)), clients(name)')
         .order('logged_at', { ascending: false })
         .limit(100)
       setLogs(l || [])
@@ -21,9 +21,15 @@ export default function Progressi() {
     load()
   }, [])
 
+  function getExerciseName(log: any) {
+    const weekProgs = log.exercises?.week_progressions || []
+    const match = weekProgs.find((wp: any) => wp.week_num === log.week_num)
+    return match?.name || log.exercises?.name || '—'
+  }
+
   const totalProgressions = logs.filter((l, _, arr) => {
     const prev = arr.find(p =>
-      p.exercises?.name === l.exercises?.name &&
+      p.exercise_id === l.exercise_id &&
       p.set_num === l.set_num &&
       p.week_num === l.week_num - 1 &&
       p.client_id === l.client_id
@@ -44,7 +50,7 @@ export default function Progressi() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 28 }}>
           {[
             { label: 'Clienti totali', value: clients.length },
-            { label: 'Sessioni loggate', value: new Set(logs.map(l => l.client_id + l.week_num + l.logged_at?.slice(0,10))).size },
+            { label: 'Sessioni loggate', value: new Set(logs.map(l => l.client_id + l.week_num + l.logged_at?.slice(0, 10))).size },
             { label: 'Progressioni', value: totalProgressions },
             { label: 'Pesi inseriti', value: logs.length },
           ].map((s, i) => (
@@ -65,15 +71,18 @@ export default function Progressi() {
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr>{['Cliente','Esercizio','Sett.','Set','Kg','Reps','Data'].map(h => (
+                <tr>{['Cliente', 'Esercizio', 'Sett.', 'Set', 'Kg', 'Reps', 'Data'].map(h => (
                   <th key={h} style={{ textAlign: 'left', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>{h}</th>
                 ))}</tr>
               </thead>
               <tbody>
                 {logs.slice(0, 30).map(log => (
-                  <tr key={log.id}>
+                  <tr key={log.id}
+                    onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'var(--surface2)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}
+                  >
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', color: 'var(--text)', fontWeight: 500, fontSize: 13 }}>{log.clients?.name}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', color: 'var(--text2)', fontSize: 13 }}>{log.exercises?.name || '—'}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', color: 'var(--text2)', fontSize: 13 }}>{getExerciseName(log)}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', color: 'var(--text3)', fontFamily: 'var(--font-dm-mono)', fontSize: 13 }}>{log.week_num}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', color: 'var(--text3)', fontFamily: 'var(--font-dm-mono)', fontSize: 13 }}>{log.set_num}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', color: 'var(--accent)', fontFamily: 'var(--font-dm-mono)', fontSize: 13, fontWeight: 500 }}>{log.kg} kg</td>
