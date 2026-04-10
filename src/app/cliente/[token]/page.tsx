@@ -125,6 +125,7 @@ export default function ClienteApp() {
   }
 
   function setLog(exId: string, field: 'kg' | 'reps', value: string) {
+    setSaved(false)
     const prog = sessionProgressions[exId]
     const sets = prog?.sets || sessionExercises.find(e => e.id === exId)?.sets || 1
     const newLogs = { ...logs }

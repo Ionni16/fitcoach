@@ -44,7 +44,31 @@ export default function ClienteDetail() {
   const [compareB, setCompareB] = useState<string>('')
   const [revealPassword, setRevealPassword] = useState(false)
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => {
+    load()
+
+    const channel = supabase
+      .channel(`client-${id}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'client_programs',
+        filter: `client_id=eq.${id}`
+      }, () => load())
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'weight_logs',
+        filter: `client_id=eq.${id}`
+      }, () => load())
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'measurements',
+        filter: `client_id=eq.${id}`
+      }, () => load())
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'progress_photos',
+        filter: `client_id=eq.${id}`
+      }, () => load())
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [id])
 
   async function load() {
     const { data: c } = await supabase.from('clients').select('*').eq('id', id).single()
